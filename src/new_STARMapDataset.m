@@ -95,6 +95,7 @@
         barcodeNames;
         barcodeSeqs;
         basecsMat;
+        CodebookSplitIndex;
         
         % Expression
         allCounts;
@@ -171,11 +172,11 @@
             [obj.rawImages, obj.dims] = test_LoadImageStacks(obj.inputPath, p.Results.sub_dir, ...
                                         p.Results.input_dim, p.Results.input_format, p.Results.zrange, p.Results.output_class, false);
             
-            obj.dimX = obj.dims(1);
-            obj.dimY = obj.dims(2);
-            obj.dimZ = obj.dims(3);
-            obj.Nchannel = obj.dims(4);
-            obj.Nround = obj.dims(5);
+            obj.dimX = p.Results.input_dim(1);
+            obj.dimY = p.Results.input_dim(2);
+            obj.dimZ = p.Results.input_dim(3);
+            obj.Nchannel = p.Results.input_dim(4);
+            obj.Nround = p.Results.input_dim(5);
 
 
             
@@ -290,6 +291,68 @@
         end
         
         
+        % 4.5 Whilte tophat
+        function obj = Tophat( obj, varargin )
+            
+            % Input parser
+            p = inputParser;
+            
+            % Defaults
+            defaultRadius = 6;
+            
+            addOptional(p,'radius',defaultRadius);
+
+
+            parse(p, varargin{:});
+            
+            fprintf("====Tophat Filtering====\n");
+            
+            % GPU test
+            if obj.useGPU
+                
+                % setup structure element
+                se = strel('disk', p.Results.radius);
+
+                for r=1:obj.Nround
+                    tic
+                    fprintf(sprintf("Processing Round %d...", r));
+
+                    for c=1:obj.Nchannel
+                        curr_channel = gpuArray(obj.rawImages(:,:,:,c,r));
+                        for z=1:obj.dimZ
+                            curr_channel(:,:,z) = imtophat(curr_channel(:,:,z), se);
+                        end
+                        obj.rawImages(:,:,:,c,r) = gather(uint8(curr_channel));
+                    end
+                    fprintf(sprintf('[time = %.2f s]\n', toc));
+                end 
+   
+
+            else
+               % setup structure element
+                se = strel('disk', p.Results.radius);
+
+                for r=1:obj.Nround
+                    tic
+                    fprintf(sprintf("Processing Round %d...", r));
+
+                    for c=1:obj.Nchannel
+                        curr_channel = obj.rawImages(:,:,:,c,r);
+                        for z=1:obj.dimZ
+                            curr_channel(:,:,z) = imtophat(curr_channel(:,:,z), se);
+                        end
+                        obj.rawImages(:,:,:,c,r) = uint8(curr_channel);
+                    end
+                    fprintf(sprintf('[time = %.2f s]\n', toc));
+                end 
+            end
+            
+            % change metadata
+            obj.jobFinished.Tophat = 1;
+            
+        end
+        
+        
         % 5.Global registration
         function obj = GlobalRegistration( obj, varargin )
             
@@ -311,7 +374,7 @@
             fprintf(sprintf('Reference round: %d\n', p.Results.ref_round));
             fprintf(sprintf('Use overlay: %d\n', p.Results.useOverlay));
             
-            obj.registeredImages = will_JointRegister3D(obj.rawImages, p.Results.ref_round, p.Results.nblocks, p.Results.useOverlay);
+            obj.registeredImages = will_JointRegister3D(obj.rawImages, p.Results.ref_round, p.Results.nblocks, p.Results.useOverlay, obj.log);
 
 
             % change metadata
@@ -364,8 +427,8 @@
                     end
 
                     output_reg(:,:,:,:,r) = gather(curr_round);
-                    fprintf(sprintf('Round %d vs. Round %d finished [time=%02f]\n', r, 1, toc));
-                    fprintf(obj.log, sprintf('Round %d vs. Round %d finished [time=%02f]\n', r, 1, toc));
+                    fprintf(sprintf('Round %d vs. Round %d finished [time=%02f]\n', r, p.Results.ref_round, toc));
+                    fprintf(obj.log, sprintf('Round %d vs. Round %d finished [time=%02f]\n', r, p.Results.ref_round, toc));
                     fprintf(sprintf('Shifted by %s\n', num2str(params.shifts)));
                     fprintf(obj.log, sprintf('Shifted by %s\n', num2str(params.shifts)));
                     reset(gpuDevice);
@@ -392,8 +455,8 @@
                     fprintf(sprintf('DFT apply finished [time=%02f]\n', toc(starting_apply)));
                     
                     output_reg(:,:,:,:,r) = curr_round;
-                    fprintf(sprintf('Round %d vs. Round %d finished [time=%02f]\n', r, 1, toc(starting)));
-                    fprintf(obj.log, sprintf('Round %d vs. Round %d finished [time=%02f]\n', r, 1, toc(starting)));
+                    fprintf(sprintf('Round %d vs. Round %d finished [time=%02f]\n', r, p.Results.ref_round, toc(starting)));
+                    fprintf(obj.log, sprintf('Round %d vs. Round %d finished [time=%02f]\n', r, p.Results.ref_round, toc(starting)));
                     fprintf(sprintf('Shifted by %s\n', num2str(params.shifts)));
                     fprintf(obj.log, sprintf('Shifted by %s\n', num2str(params.shifts)));
                 end
@@ -510,7 +573,7 @@
                     round1_img(:,:,:,c) = curr_reg;
                 end
 
-                obj.rawImages(:,:,:,:,1) = round1_img;
+                obj.rawImages(:,:,:,:,2) = round1_img;
                 fprintf(sprintf('Move nuclei vs. Ref nuclei finished [time=%02f]\n', toc));
                 fprintf(obj.log, sprintf('Move nuclei vs. Ref nuclei finished [time=%02f]\n', toc));
                 fprintf(sprintf('Shifted by %s\n', num2str(params.shifts)));
@@ -533,6 +596,11 @@
             ref_dapi_path = dir(fullfile(obj.inputPath, "round1", sub_dir, "*.tif"));
             ref_dapi = new_LoadMultipageTiff(fullfile(ref_dapi_path(5).folder, ref_dapi_path(5).name), 'uint8', 'uint8', false);
             
+%             ref_dapi_path = dir(fullfile(obj.inputPath, "ref_dapi", sub_dir, "*.tif"));
+%             ref_dapi = new_LoadMultipageTiff(fullfile(ref_dapi_path(1).folder, ref_dapi_path(1).name), 'uint8', 'uint8', false);
+            
+            ref_dapi = ref_dapi(:,:,1:30); %%%
+            
             protein_path = fullfile(obj.inputPath, protein_folder, sub_dir);
             protein_files = dir(fullfile(protein_path, '*.tif'));
             nfiles = numel(protein_files);
@@ -542,7 +610,7 @@
             for c=1:nfiles 
                 curr_path = strcat(protein_files(c).folder, '/', protein_files(c).name);
                 curr_img = new_LoadMultipageTiff(curr_path, 'uint8', 'uint8', false);
-                protein_imgs{c} = curr_img;
+                protein_imgs{c} = curr_img(:,:,1:30);
             end
 
 
@@ -555,7 +623,7 @@
 
                 params = DFTRegister3D(fix, mov, false);
 
-                for c=1:4
+                for c=1:nfiles
                     curr_reg = DFTApply3D(gpuArray(protein_imgs{c}), params, false);
                     protein_imgs{c} = uint8(gather(curr_reg));
                 end
@@ -585,6 +653,67 @@
 
             % change metadata
             obj.jobFinished.NucleiRegistrationProtein = 1;
+            
+        end
+        
+        % 6.5 use DAPI register protein images  
+        function obj = DotsRegistrationProtein( obj, protein_folder, sub_dir, move_channel )
+            
+            fprintf('====Dots-based Registration====\n');
+            
+            protein_path = fullfile(obj.inputPath, protein_folder, sub_dir);
+            protein_files = dir(fullfile(protein_path, '*.tif'));
+            nfiles = numel(protein_files);
+            protein_imgs = cell(nfiles, 1);
+
+            % Load all channels
+            for c=1:nfiles 
+                curr_path = strcat(protein_files(c).folder, '/', protein_files(c).name);
+                curr_img = new_LoadMultipageTiff(curr_path, 'uint8', 'uint8', false);
+                protein_imgs{c} = curr_img;
+            end
+
+            ref_img = max(obj.rawImages(:,:,:,:,1), [], 4);
+            
+            if obj.useGPU
+                
+                tic;
+                
+                fix = gpuArray(ref_img);
+                mov = gpuArray(protein_imgs{move_channel});
+                params = DFTRegister3D(fix, mov, false);
+
+                for c=1:4
+                    curr_reg = DFTApply3D(gpuArray(protein_imgs{c}), params, false);
+                    protein_imgs{c} = uint8(gather(curr_reg));
+                end
+
+                obj.proteinImages = protein_imgs;
+                fprintf(sprintf('Move image vs. Ref image finished [time=%02f]\n', toc));
+                fprintf(obj.log, sprintf('Move image vs. Ref image finished [time=%02f]\n', toc));
+                fprintf(sprintf('Shifted by %s\n', num2str(params.shifts)));
+                fprintf(obj.log, sprintf('Shifted by %s\n', num2str(params.shifts)));
+                reset(gpuDevice);
+               
+            else
+                tic;
+                mov = protein_imgs{move_channel};
+                params = DFTRegister3D(ref_img, mov, false);
+
+                for c=1:4
+                    curr_reg = DFTApply3D(protein_imgs{c}, params, false);
+                    protein_imgs{c} = uint8(curr_reg);
+                end
+
+                obj.proteinImages = protein_imgs;
+                fprintf(sprintf('Move image vs. Ref image finished [time=%02f]\n', toc));
+                fprintf(obj.log, sprintf('Move image vs. Ref image finished [time=%02f]\n', toc));
+                fprintf(sprintf('Shifted by %s\n', num2str(params.shifts)));
+                fprintf(obj.log, sprintf('Shifted by %s\n', num2str(params.shifts)));
+            end
+
+            % change metadata
+            obj.jobFinished.DotsRegistrationProtein = 1;
             
         end
         
@@ -684,23 +813,24 @@
             
             % Defaults
             defaultvoxelSize = [3 3 1];
-            defaultthreshold = 0.5;
-            defaultshowPlots = true;
+%             defaultthreshold = 0.5;
+%             defaultshowPlots = true;
 
             addParameter(p, 'voxelSize', defaultvoxelSize);
-            addParameter(p, 'q_score_thers', defaultthreshold);
-            addParameter(p, 'showPlots', defaultshowPlots);
+%             addParameter(p, 'q_score_thers', defaultthreshold);
+%             addParameter(p, 'showPlots', defaultshowPlots);
 
             parse(p, varargin{:});
             
             fprintf('====Reads Extraction====\n');
             fprintf(sprintf('voxel size: %d x %d x %d\n', p.Results.voxelSize));
             
-            [obj.allReads, obj.allSpots, obj.allScores, obj.basecsMat] = ExtractFromLocation( obj.registeredImages, obj.allSpots, ...
-                                                                                    p.Results.voxelSize, p.Results.q_score_thers, ...
-                                                                                    p.Results.showPlots, obj.log ); 
+%             [obj.allReads, obj.allSpots, obj.allScores, obj.basecsMat] = ExtractFromLocation( obj.registeredImages, obj.allSpots, ...
+%                                                                                     p.Results.voxelSize, p.Results.q_score_thers, ...
+%                                                                                     p.Results.showPlots, obj.log ); 
 
-
+            obj = ExtractFromLocation( obj, p.Results.voxelSize ); 
+                                                                                
             obj.jobFinished.ReadsExtraction = [1 p.Results.voxelSize];
         
         end
@@ -726,6 +856,7 @@
             % load hash tables of gene name -> seq and seq -> gene name
             % where 'seq' is the string representation of the barcode in colorspace
             [obj.geneToSeq, obj.seqToGene] = new_LoadCodebook(obj.inputPath, p.Results.remove_index, p.Results.doReverse);  
+            obj.CodebookSplitIndex = p.Results.remove_index;
             
             seqStrs = obj.seqToGene.keys;
             seqCS = []; % color sequences in matrix form for computing hamming distances ie: Nbarcode x Nround double
@@ -750,13 +881,19 @@
             p = inputParser;
             
             % Defaults
+            defaultthreshold = 0.5;
             defaultmode = "regular";
             defaultendBases = ['C', 'C'];
+            defaultsplitLoc = 4;
             defaultshowPlots = true;
+            defaultendBasesMix = ['C', 'A'];
 
+            addParameter(p, 'q_score_thers', defaultthreshold);
             addParameter(p, 'mode', defaultmode);
             addParameter(p, 'endBases', defaultendBases);
+            addParameter(p, 'split_loc', defaultsplitLoc);
             addParameter(p, 'showPlots', defaultshowPlots);
+            addParameter(p, 'endBases_mix', defaultendBasesMix);
 
             parse(p, varargin{:});
             
@@ -766,9 +903,11 @@
 
             switch p.Results.mode
                 case "regular"
-                    obj = new_FilterReads(obj, p.Results.endBases, p.Results.showPlots);  
+                    obj = new_FilterReads(obj, p.Results.endBases, p.Results.q_score_thers, p.Results.showPlots);  
                 case "duo"
-                    obj = new_FilterReads_Duo(obj, p.Results.endBases, p.Results.showPlots);  
+                    obj = new_FilterReads_Duo(obj, p.Results.endBases, p.Results.split_loc, p.Results.q_score_thers, p.Results.showPlots);
+                case "mix"
+                    obj = new_FilterReads_Mix(obj, p.Results.endBases, p.Results.endBases_mix, p.Results.showPlots);
                     
             end
             

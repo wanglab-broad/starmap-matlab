@@ -1,14 +1,57 @@
-function obj = new_FilterReads_Duo( obj, endBases, showPlots )
+function obj = new_FilterReads_Duo( obj, endBases, split_loc, q_score_thers, showPlots )
 % FilterReads_Duo
 
+%     if nargin < 4
+%         correctErrors = false;
+%     end
+
+%     % remove reads with any infinite values
+%     finiteScores = ~any(isinf(obj.allScores), 2);            
+
+    % remove reads with bad quality scores
+    if showPlots
+        figure(1);
+        histogram(mean(obj.allScores, 2), 100)
+        xlabel('Average scores'); ylabel('Count');
+    end
+    
+    % export_fig is an add-on
+    % export_fig(fullfile(obj.outPath, 'average_scores.png'));
+
+
+    belowScoreThresh = mean(obj.allScores, 2) < q_score_thers; % 0.5; 
+    s = sprintf('%f [%d / %d] percent of reads are below score thresh %d\n',...
+        sum(belowScoreThresh)/numel(belowScoreThresh),...
+        sum(belowScoreThresh), ...
+        numel(belowScoreThresh), ...
+        q_score_thers);
+    fprintf(s);
+    
+    if ~isempty(obj.log)
+        fprintf(obj.log, s);
+    end
+    
+    obj.allReads = obj.allReads(belowScoreThresh);
+    obj.allScores = obj.allScores(belowScoreThresh,:);
+    obj.allSpots = obj.allSpots(belowScoreThresh,:);
+    obj.basecsMat = obj.basecsMat(belowScoreThresh,:);
+    
+    if showPlots
+        figure(1);
+        errorbar(mean(obj.allScores), std(obj.allScores),'ko-'); 
+        xlim([0 obj.Nround+1]); 
+        xlabel('Round'); ylabel('Average qual score');
+    end
+    
+% =========
     % Filter reads by whether they are in the codebook
     % This is just as a sanity check; reads are actually filtered
     % by whether they are in the codebook
     filtBases = obj.basecsMat;
     correctSeqs = zeros(size(filtBases,1), 2); % count sequences that are of correct form
 
-    cs_front = filtBases(:, 1:4);
-    cs_back = filtBases(:, 5:8);
+    cs_front = filtBases(:, 1:split_loc);
+    cs_back = filtBases(:, split_loc+1:obj.Nround);
 
     bases_front = new_DecodeCS(cs_front, endBases(1));
     bases_back = new_DecodeCS(cs_back, endBases(2));
@@ -64,7 +107,7 @@ function obj = new_FilterReads_Duo( obj, endBases, showPlots )
     obj.goodScores = obj.allScores(readsToKeep,:);
 
     if showPlots
-        figure(1);
+        figure(2);
         errorbar(mean(obj.goodScores), std(obj.goodScores),'ko-'); 
         xlim([0 obj.Nround+1]); 
         xlabel('Round'); ylabel('Average qual score');

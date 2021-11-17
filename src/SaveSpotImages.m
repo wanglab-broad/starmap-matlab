@@ -1,7 +1,7 @@
 function SaveSpotImages(obj, file_name, esize)
 %
 
-    spot_stack = get_spot_stack(obj.registeredImages, obj.goodSpots, esize);
+    spot_stack = get_spot_stack(obj.dims, obj.goodSpots, esize);
 
     output_path = obj.outputPath;
     file_path = fullfile(output_path, file_name);

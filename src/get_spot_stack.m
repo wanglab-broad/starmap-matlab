@@ -20,10 +20,10 @@ function spot_stack = get_spot_stack(input_size, points, esize)
 
         extentsX = GetExtents(p(2), esize(1), X);
         extentsY = GetExtents(p(1), esize(2), Y);                    
-        % extentsZ = GetExtents(p(3), esize(3), Z);
+        extentsZ = GetExtents(p(3), esize(3), Z);
 
         % 3x3x3
-        spot_stack(extentsX, extentsY) = 255;
+        spot_stack(extentsX, extentsY, extentsZ) = 255;
 
     end
     

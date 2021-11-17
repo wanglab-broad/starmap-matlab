@@ -2,7 +2,7 @@ function [allReads, allSpots, allScores, basecsMat] = test_SpotFindingBarcode( i
 %SpotFindingBarcode
 
     Nround = size(input_img, 5);
-%     goodCodes = str2double(keys(seqTogene));
+    goodCodes = str2double(keys(seqTogene));
     allSpots = [];
     allReads = {};
     basecsMat = [];
@@ -41,8 +41,8 @@ function [allReads, allSpots, allScores, basecsMat] = test_SpotFindingBarcode( i
     fprintf('Iterate through clusters...')
     tic;
 
-%     iter_codes = goodCodes;
-    iter_codes = barcodes;
+    iter_codes = goodCodes;
+%     iter_codes = barcodes;
 
     
     parfor c = 1:numel(iter_codes)

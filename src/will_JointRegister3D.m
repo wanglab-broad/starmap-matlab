@@ -1,4 +1,4 @@
-function input_img = will_JointRegister3D( input_img, ref_idx, nblocks, useOverlay )
+function input_img = will_JointRegister3D( input_img, ref_idx, nblocks, useOverlay, log_file )
 % 
 
     if nargin < 2    
@@ -57,8 +57,11 @@ function input_img = will_JointRegister3D( input_img, ref_idx, nblocks, useOverl
             curr_overlay = sum(input_img(:,:,:,:,r) / 4, 4);
             msg = sprintf('Registering Round %d vs. Round %d...[time=%02f]\n', r, ref_idx, toc);
             fprintf(msg);
+            fprintf(log_file, msg);
             [params{r-1}, currReg] = DFTRegister3D(ref_round, curr_overlay, false);
-            disp(['Shifting by ' num2str(params{r-1}.shifts)]);
+%             disp(['Shifting by ' num2str(params{r-1}.shifts)]);
+            fprintf(sprintf('Shifted by %s\n', num2str(params{r-1}.shifts)));
+            fprintf(log_file, sprintf('Shifted by %s\n', num2str(params{r-1}.shifts)));
             regImgs{r} = uint8(currReg);
         end
 
@@ -68,9 +71,12 @@ function input_img = will_JointRegister3D( input_img, ref_idx, nblocks, useOverl
             % curr_max = max(input_img{r}, [], 4);
             curr_max = max(input_img(:,:,:,:,r), [], 4);
             msg = sprintf('Registering Round %d vs. Round %d...[time=%02f]\n', r, ref_idx, toc);
-            fprintf(msg);          
+            fprintf(msg);      
+            fprintf(log_file, msg);
             [params{r-1}, currReg] = DFTRegister3D(ref_round, curr_max, false);
-            disp(['Shifting by ' num2str(params{r-1}.shifts)]);
+%             disp(['Shifting by ' num2str(params{r-1}.shifts)]);
+            fprintf(sprintf('Shifted by %s\n', num2str(params{r-1}.shifts)));
+            fprintf(log_file, sprintf('Shifted by %s\n', num2str(params{r-1}.shifts)));
             regImgs{r} = uint8(currReg);
         end
     end

@@ -40,10 +40,14 @@ function [output_imgs, dims] = test_LoadImageStacks( inputPath, sub_dir, input_d
 
                     curr_img = new_LoadMultipageTiff(curr_path, input_format, 'uint8', useGPU);
                     
-                    % append blank layer if z doesn't match 
-                    while size(curr_img, 3) ~= input_dim(3)
-                        curr_img(:,:,end+1) = zeros(input_dim(1:2), 'uint8');
+                    if ~isempty(zrange)
+                        curr_img = curr_img(:,:,zrange(1):zrange(2));
                     end
+                    
+%                     % append blank layer if z doesn't match 
+%                     while size(curr_img, 3) ~= input_dim(3)
+%                         curr_img(:,:,end+1) = zeros(input_dim(1:2), 'uint8');
+%                     end
                     
                     output_imgs(:,:,:,c,r) = curr_img;
                 end
@@ -111,7 +115,7 @@ function [output_imgs, dims] = test_LoadImageStacks( inputPath, sub_dir, input_d
                     curr_path = strcat(curr_files(c).folder, '/', curr_files(c).name);
 
                     curr_img = new_LoadMultipageTiff(curr_path, 'uint8', 'uint8', useGPU);
-
+                    
                     round_img(:,:,:,c) = curr_img;
                 end
 
