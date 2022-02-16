@@ -168,9 +168,13 @@
             
             % Load tiff stacks from inputPath
             fprintf('====Loading raw images====\n');
-            %obj.rawImages = new_LoadImageStacks(obj.inputPath, dims, p.Results.sub_dir, false);
-            [obj.rawImages, obj.dims] = test_LoadImageStacks(obj.inputPath, p.Results.sub_dir, ...
-                                        p.Results.input_dim, p.Results.input_format, p.Results.zrange, p.Results.output_class, false);
+            [obj.rawImages, obj.dims] = test_LoadImageStacks(obj.inputPath, ...
+                                                            p.Results.sub_dir, ...
+                                                            p.Results.input_dim, ...
+                                                            p.Results.input_format, ...
+                                                            p.Results.zrange, ...
+                                                            p.Results.output_class, ...
+                                                            false);
             
             obj.dimX = p.Results.input_dim(1);
             obj.dimY = p.Results.input_dim(2);
@@ -178,15 +182,13 @@
             obj.Nchannel = p.Results.input_dim(4);
             obj.Nround = p.Results.input_dim(5);
 
-
-            
             % change metadata
             obj.jobFinished.LoadRawImages = class(obj.rawImages);
             
         end
         
         
-        % 2.5.Swap channels (2 & 3)
+        % 3.Swap channels (2 & 3)
         function obj = SwapChannels( obj, varargin )
             
             % Input parser
@@ -236,7 +238,6 @@
             addOptional(p,'radius',defaultRadius);
             addOptional(p,'height',defaultHeight);
 
-
             parse(p, varargin{:});
             
             fprintf("====Morphological Reconstruction====\n");
@@ -268,21 +269,8 @@
                     end
                     fprintf(sprintf('[time = %.2f s]\n', toc));
                 end 
-   
-
-%                 obj.rawImages = im_mat2cell(obj.rawImages);
-%                 for r=1:obj.Nround
-%                     obj.rawImages{r} = gpuArray(obj.rawImages{r});
-%                 end
-%                     obj.rawImages = cell_MorphologicalReconstruction(obj.rawImages, p.Results.Method, p.Results.radius, p.Results.height);
-%                     
-%                 for r=1:obj.Nround   
-%                     obj.rawImages{r} = gather(obj.rawImages{r});
-%                 end
-%                 obj.rawImages = im_cell2mat(obj.rawImages);
             else
                 obj.rawImages = new_MorphologicalReconstruction(obj.rawImages, p.Results.Method, p.Results.radius, p.Results.height);
-                % obj.registeredImages = new_MorphologicalReconstruction(obj.registeredImages, p.Results.Method, p.Results.radius, p.Results.height);
             end
             
             % change metadata
@@ -327,7 +315,6 @@
                     fprintf(sprintf('[time = %.2f s]\n', toc));
                 end 
    
-
             else
                % setup structure element
                 se = strel('disk', p.Results.radius);
@@ -953,29 +940,8 @@
             obj.jobFinished.LoadCellImages = 1;
             
         end
-        
-        
-        % 13.Assign reads to cells 
-        function obj = AssignReads( obj, varargin )
-            
-            fprintf('====Assign Reads to Cells====\n');
-            
-            % get cell idx of good reads using goodSpots
-            obj.goodReadsLoc = GetReadsLocation(obj.goodSpots, obj.labelImages); 
-            
-            % get gene by cell expression matrix 
-            obj.geneByCells = GetGeneByCells( obj ); 
-            
-            fprintf('====Assign Finished====\n');
-            
-            % change metadata
-            obj.jobFinished.AssignReads = 1;
-            
-        end
-        
+    
     end
-    
-    
     methods % Optional 
         
         % 1.Load registered images
@@ -984,16 +950,29 @@
             % Input parser
             p = inputParser;
             
+            defaultsubdir = '';
+            defaultinputDim = [];
+            defaultinputFormat = 'uint8';
+            defaultzrange = '';
+            defaultclass = "mat";
             defaultuseGPU = false;
-            
-            addRequired(p, 'inputPath');
+            addOptional(p, 'sub_dir', defaultsubdir);
+            addOptional(p, 'input_dim', defaultinputDim);
+            addOptional(p, 'input_format', defaultinputFormat);
+            addOptional(p, 'zrange', defaultzrange);
+            addOptional(p, 'output_class', defaultclass);
             addOptional(p, 'useGPU', defaultuseGPU);
-            parse(p, inputPath, varargin{:});
+            parse(p, varargin{:});
             
             % Load tiff stacks from inputPath
-            fprintf('====Loading registered images====\n');
-            obj.registeredImages = new_LoadImageStacks(p.Results.inputPath, obj.dims, false);
-            
+            fprintf('====Loading raw images====\n');
+            [obj.registeredImages, ~] = test_LoadImageStacks(inputPath, ...
+                                                            p.Results.sub_dir, ...
+                                                            p.Results.input_dim, ...
+                                                            p.Results.input_format, ...
+                                                            p.Results.zrange, ...
+                                                            p.Results.output_class, ...
+                                                            false);
             % change metadata
             obj.jobFinished.LoadRegisteredImages = 1;
             

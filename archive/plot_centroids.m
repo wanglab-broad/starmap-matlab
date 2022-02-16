@@ -9,7 +9,7 @@ if nargin < 5
 end
 
     figure
-    imshow(input_img, [])
+    imshow(input_img)
     hold on
     plot(input_centroid(:,1), input_centroid(:,2), '.', "Color", color, "MarkerSize", msize)
     title(input_title)
