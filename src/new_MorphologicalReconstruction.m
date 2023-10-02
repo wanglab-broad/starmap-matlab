@@ -128,5 +128,4 @@ function input_img = new_MorphologicalReconstruction( input_img, method, varargi
             
     end
     
-end
 
